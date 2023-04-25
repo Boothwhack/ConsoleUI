@@ -1,0 +1,1 @@
+A small widget based UI framework for console applications in C#. Layout management inspired by Android's new Jetpack Compose UI libraries.
