@@ -2,14 +2,14 @@
 
 namespace ConsoleUI
 {
-    enum FocusDirection
+    public enum FocusDirection
     {
         Horizontal,
         Vertical,
     }
 
     /** Håndterer en samling widgets som kan tegnes på skærmen og håndterer interaktioner. */
-    class Screen
+    public class Screen
     {
         private DrawManager _drawManager = new();
         private FocusManager _focusManager;
@@ -86,9 +86,9 @@ namespace ConsoleUI
 
     class DrawManager
     {
-        private Widget[] _elements;
+        private Widget[] _elements = { };
         private Refreshable[] _refreshableElements = { };
-        private object _lock = new();
+        private readonly object _lock = new();
         public bool Exit = false;
         private Stopwatch _stopwatch = new();
 
@@ -156,18 +156,18 @@ namespace ConsoleUI
         }
     }
 
-    interface Refreshable : Widget
+    public interface Refreshable : Widget
     {
         /** Returnerer om hvor lang tid dette element skal opdateres eller null hvis ikke */
         public long? RefreshInMillis();
     }
 
-    interface Drawable
+    public interface Drawable
     {
         public void Draw(Vec2 offset);
     }
 
-    struct DrawCall : Drawable
+    public struct DrawCall : Drawable
     {
         public Vec2 Position;
 
@@ -181,6 +181,11 @@ namespace ConsoleUI
         public string Output;
         public ConsoleColor? BackgroundColor;
         public ConsoleColor? ForegroundColor;
+
+        public DrawCall(string output) : this()
+        {
+            Output = output;
+        }
 
         public void Draw(Vec2 offset)
         {
@@ -210,7 +215,7 @@ namespace ConsoleUI
         }
     }
 
-    struct Frame : Drawable
+    public struct Frame : Drawable
     {
         public Vec2 Position;
         public List<Drawable> Children;
@@ -223,19 +228,19 @@ namespace ConsoleUI
         }
     }
 
-    interface Widget
+    public interface Widget
     {
         Vec2 Measure(Vec2 constraints);
 
         List<Drawable> Draw(Vec2 measured);
     }
 
-    interface Container
+    public interface Container : Refreshable
     {
         Rect? BoundsOfChild(Widget child);
     }
 
-    interface Focusable : Widget
+    public interface Focusable : Widget
     {
         bool Focused { get; set; }
 
@@ -244,7 +249,7 @@ namespace ConsoleUI
         Vec2 Hotspot(Vec2 measured);
     }
 
-    struct Vec2
+    public struct Vec2
     {
         public static Vec2 Zero = new(0.0, 0.0);
         public static Vec2 One = new(1.0, 1.0);
@@ -263,7 +268,7 @@ namespace ConsoleUI
         public static Vec2 operator *(Vec2 a, double scalar) => new(a.X * scalar, a.Y * scalar);
     }
 
-    struct Rect
+    public struct Rect
     {
         public Vec2 From, To;
 
@@ -282,7 +287,7 @@ namespace ConsoleUI
         public static Rect operator +(Rect a, Vec2 b) => new(a.From + b, a.To + b);
     }
 
-    class LabelWidget : Widget
+    public class LabelWidget : Widget
     {
         public string Label;
         private double _horizontalAlignment;
@@ -331,7 +336,7 @@ namespace ConsoleUI
         }
     }
 
-    class InputFieldWidget : Widget, Focusable
+    public class InputFieldWidget : Widget, Focusable
     {
         public Predicate<char> CharPredicate;
         public int MaxWidth;
@@ -386,19 +391,19 @@ namespace ConsoleUI
         }
     }
 
-    struct PlacedWidget
+    public struct PlacedWidget
     {
         public Widget Widget;
         public Rect Bounds;
     }
 
-    struct PlacementState
+    public struct PlacementState
     {
         public PlacedWidget[] PlacedWidgets;
         public Dictionary<Widget, int> Lookup;
     }
 
-    class LayoutWidget : Widget, Container
+    public class LayoutWidget : Widget, Container
     {
         private Widget[] _elements;
         private PlacementState _placementState;
@@ -495,9 +500,11 @@ namespace ConsoleUI
                 Position = widget.Bounds.From,
             } as Drawable).ToList();
         }
+
+        public long? RefreshInMillis() => _elements.OfType<Refreshable>().Min(widget => widget.RefreshInMillis());
     }
 
-    class FrameWidget : Widget, Container
+    public class FrameWidget : Widget, Container
     {
         public Widget Child;
         public Vec2 Size;
@@ -541,9 +548,16 @@ namespace ConsoleUI
                 }
             };
         }
+
+        public long? RefreshInMillis()
+        {
+            if (Child is Refreshable refreshable)
+                return refreshable.RefreshInMillis();
+            return null;
+        }
     }
 
-    class SelectorWidget : Focusable
+    public class SelectorWidget : Focusable
     {
         public string[] Options;
         public int Selection;
@@ -641,7 +655,7 @@ namespace ConsoleUI
         public Vec2 Hotspot(Vec2 measured) => new(measured.X, measured.Y / 2);
     }
 
-    class SpaceWidget : Widget
+    public class SpaceWidget : Widget
     {
         public Vec2 Space = new(1, 1);
 
@@ -668,10 +682,11 @@ namespace ConsoleUI
         }
     }
 
-    class ButtonWidget : Focusable
+    public class ButtonWidget : Focusable
     {
         public bool Focused { get; set; }
-        public string Label;
+        public string Label = "";
+        public bool Padding = true;
 
         private bool _pressed;
 
@@ -692,8 +707,8 @@ namespace ConsoleUI
         public Vec2 Measure(Vec2 constraints)
         {
             return new Vec2(
-                Math.Min(constraints.X, Label.Length + 4),
-                Math.Min(constraints.Y, 3)
+                Math.Min(constraints.X, Label.Length + (Padding ? 4 : 2)),
+                Math.Min(constraints.Y, Padding ? 3 : 1)
             );
         }
 
@@ -702,7 +717,7 @@ namespace ConsoleUI
             ConsoleColor? foregroundColor = Focused ? ConsoleColor.Black : null;
             ConsoleColor? backgroundColor = Focused ? ConsoleColor.White : null;
 
-            var maxLength = (int)measured.X - 4;
+            var maxLength = (int)measured.X - (Padding ? 4 : 0);
             var label = Label.Length > maxLength ? Label[..(maxLength - 3)] + "..." : Label;
             var length = (int)measured.X;
             var horizontalPadding = length - label.Length;
@@ -710,11 +725,16 @@ namespace ConsoleUI
                               label +
                               new string(' ', horizontalPadding / 2 + horizontalPadding % 2);
 
+            var output = "";
+            if (Padding) output += new string(' ', length) + '\n';
+            output += paddedLabel;
+            if (Padding) output += '\n' + new string(' ', length);
+
             return new List<Drawable>
             {
                 new DrawCall
                 {
-                    Output = new string(' ', length) + '\n' + paddedLabel + '\n' + new string(' ', length),
+                    Output = output,
                     ForegroundColor = foregroundColor,
                     BackgroundColor = backgroundColor
                 }
@@ -732,7 +752,7 @@ namespace ConsoleUI
         public Vec2 Hotspot(Vec2 measured) => Vec2.Zero;
     }
 
-    class FocusManager
+    public class FocusManager
     {
         private Focusable[] _elements;
 
