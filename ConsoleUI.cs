@@ -253,6 +253,8 @@ namespace ConsoleUI
     {
         public static Vec2 Zero = new(0.0, 0.0);
         public static Vec2 One = new(1.0, 1.0);
+        public static Vec2 Right = new(1.0, 0.0);
+        public static Vec2 Down = new(0.0, 1.0);
 
         public double X, Y;
 
