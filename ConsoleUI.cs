@@ -388,7 +388,8 @@ namespace ConsoleUI
 
             if (char.IsControl(key.KeyChar) || !CharPredicate(key.KeyChar)) return false;
 
-            Contents += key.KeyChar;
+            if (Contents.Length < MaxWidth)
+                Contents += key.KeyChar;
             return true;
         }
     }
@@ -766,8 +767,13 @@ namespace ConsoleUI
                 if (_elements.Length > 0) FocusedElement.Focused = false;
                 _elements = value;
                 _lookup = LookupFor(_elements);
-                _focused = Math.Clamp(_focused, 0, _elements.Length - 1);
-                if (_elements.Length > 0) FocusedElement.Focused = true;
+
+                if (_elements.Length > 0)
+                {
+                    _focused = Math.Clamp(_focused, 0, _elements.Length - 1);
+                    FocusedElement.Focused = true;
+                }
+                else _focused = 0;
             }
         }
 
