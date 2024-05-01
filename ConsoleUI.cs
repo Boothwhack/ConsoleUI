@@ -367,8 +367,8 @@ namespace ConsoleUI
                 new DrawCall
                 {
                     Position = new Vec2(0, 1),
-                    Output = new string('‾', (int)measured.X),
-                    ForegroundColor = Focused ? null : ConsoleColor.Gray
+                    Output = new string(Focused ? '\u2594' : '‾', (int)measured.X),
+                    ForegroundColor = Focused ? ConsoleColor.White : ConsoleColor.Gray
                 }
             };
         }
