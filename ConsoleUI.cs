@@ -11,7 +11,8 @@ namespace ConsoleUI
     /** Håndterer en samling widgets som kan tegnes på skærmen og håndterer interaktioner. */
     public class Screen
     {
-        private DrawManager _drawManager = new();
+        private ITerminal _terminal;
+        private DrawManager _drawManager;
         private FocusManager _focusManager;
 
         public Widget[] Elements
@@ -24,10 +25,11 @@ namespace ConsoleUI
             }
         }
 
-        public Screen(Widget[] elements)
+        public Screen(ITerminal terminal)
         {
-            _drawManager.Elements = elements;
-            _focusManager = new FocusManager(elements.OfType<Focusable>().ToArray());
+            _drawManager = new DrawManager(terminal);
+            _focusManager = new FocusManager(Array.Empty<Focusable>());
+            _terminal = terminal;
         }
 
         public FocusDirection FocusDirection;
@@ -52,7 +54,7 @@ namespace ConsoleUI
 
         public bool HandleInput()
         {
-            var key = Console.ReadKey(true);
+            var key = _terminal.ReadKey(true);
             if (!_focusManager.OnKey(key))
             {
                 if (key.Key is ConsoleKey.Tab) _focusManager.ShiftFocus();
@@ -91,6 +93,12 @@ namespace ConsoleUI
         private readonly object _lock = new();
         public bool Exit = false;
         private Stopwatch _stopwatch = new();
+        private ITerminal _terminal;
+
+        public DrawManager(ITerminal terminal)
+        {
+            _terminal = terminal;
+        }
 
         public Widget[] Elements
         {
@@ -116,15 +124,15 @@ namespace ConsoleUI
 
             while (!Exit)
             {
-                Console.Clear();
-                var constraints = new Vec2(Console.WindowWidth, Console.WindowHeight);
+                _terminal.Clear();
+                var constraints = new Vec2(_terminal.WindowWidth, _terminal.WindowHeight);
                 lock (_elements)
                 {
                     foreach (var element in _elements)
                     {
                         var measured = element.Measure(constraints);
                         foreach (var drawable in element.Draw(measured))
-                            drawable.Draw(Vec2.Zero);
+                            drawable.Draw(Vec2.Zero, _terminal);
                     }
                 }
 
@@ -164,7 +172,7 @@ namespace ConsoleUI
 
     public interface Drawable
     {
-        public void Draw(Vec2 offset);
+        public void Draw(Vec2 offset, ITerminal terminal);
     }
 
     public struct DrawCall : Drawable
@@ -187,31 +195,31 @@ namespace ConsoleUI
             Output = output;
         }
 
-        public void Draw(Vec2 offset)
+        public void Draw(Vec2 offset, ITerminal terminal)
         {
             var x = (int)(Position.X + offset.X);
             var y = (int)(Position.Y + offset.Y);
 
             if (BackgroundColor != null)
-                Console.BackgroundColor = (ConsoleColor)BackgroundColor;
+                terminal.BackgroundColor = (ConsoleColor)BackgroundColor;
             if (ForegroundColor != null)
-                Console.ForegroundColor = (ConsoleColor)ForegroundColor;
+                terminal.ForegroundColor = (ConsoleColor)ForegroundColor;
 
             var lines = Output.Split('\n');
             for (var i = 0; i < lines.Length; i++)
             {
                 var cursorY = y + i;
                 // undgå at skrive uden for vinduets rammer
-                if (cursorY < 0 || cursorY >= Console.WindowHeight) continue;
+                if (cursorY < 0 || cursorY >= terminal.WindowHeight) continue;
 
-                Console.SetCursorPosition(
+                terminal.SetCursorPosition(
                     (int)double.Round(x - lines[i].Length * HorizontalAlignment),
                     cursorY
                 );
-                Console.Write(lines[i]);
+                terminal.Write(lines[i]);
             }
 
-            Console.ResetColor();
+            terminal.ResetColor();
         }
     }
 
@@ -220,11 +228,11 @@ namespace ConsoleUI
         public Vec2 Position;
         public List<Drawable> Children;
 
-        public void Draw(Vec2 offset)
+        public void Draw(Vec2 offset, ITerminal terminal)
         {
             var position = Position + offset;
             foreach (var drawable in Children)
-                drawable.Draw(position);
+                drawable.Draw(position, terminal);
         }
     }
 
