@@ -48,13 +48,16 @@ namespace ConsoleUI
             _focusManager.SetFocused(element);
         }
 
-        public Thread DrawThread() => new(() => _drawManager.DrawLoop());
+        public Task Draw()
+        {
+            return new Task(_drawManager.DrawLoop);
+        }
 
         public void RefreshScreen() => _drawManager.RefreshNow();
 
-        public bool HandleInput()
+        public async Task<bool> HandleInput()
         {
-            var key = _terminal.ReadKey(true);
+            var key = await _terminal.ReadKey(true);
             if (!_focusManager.OnKey(key))
             {
                 if (key.Key is ConsoleKey.Tab) _focusManager.ShiftFocus();
@@ -90,7 +93,7 @@ namespace ConsoleUI
     {
         private Widget[] _elements = { };
         private Refreshable[] _refreshableElements = { };
-        private readonly object _lock = new();
+        private CancellationTokenSource _wait = new();
         public bool Exit = false;
         private Stopwatch _stopwatch = new();
         private ITerminal _terminal;
@@ -112,13 +115,10 @@ namespace ConsoleUI
 
         public void RefreshNow()
         {
-            lock (_lock)
-            {
-                Monitor.Pulse(_lock);
-            }
+            _wait.Cancel();
         }
 
-        public void DrawLoop()
+        public async void DrawLoop()
         {
             long? nextRefresh = null;
 
@@ -126,39 +126,40 @@ namespace ConsoleUI
             {
                 _terminal.Clear();
                 var constraints = new Vec2(_terminal.WindowWidth, _terminal.WindowHeight);
-                lock (_elements)
+                foreach (var element in _elements)
                 {
-                    foreach (var element in _elements)
+                    var measured = element.Measure(constraints);
+                    foreach (var drawable in element.Draw(measured))
+                        drawable.Draw(Vec2.Zero, _terminal);
+                }
+
+                if (nextRefresh is null)
+                {
+                    var timeout = _refreshableElements.Min(el => el.RefreshInMillis());
+                    if (timeout is long wait)
                     {
-                        var measured = element.Measure(constraints);
-                        foreach (var drawable in element.Draw(measured))
-                            drawable.Draw(Vec2.Zero, _terminal);
+                        var currentTime = _stopwatch.ElapsedMilliseconds;
+                        nextRefresh = currentTime + wait;
                     }
                 }
 
-                lock (_refreshableElements)
-                {
-                    if (nextRefresh is null)
-                    {
-                        var timeout = _refreshableElements.Min(el => el.RefreshInMillis());
-                        if (timeout is long wait)
-                        {
-                            var currentTime = _stopwatch.ElapsedMilliseconds;
-                            nextRefresh = currentTime + wait;
-                        }
-                    }
-                }
-
-                lock (_lock)
+                try
                 {
                     if (nextRefresh is long next)
                     {
                         var currentTime = _stopwatch.ElapsedMilliseconds;
                         var timeout = next - currentTime;
-                        Monitor.Wait(_lock, (int)timeout);
+                        await Task.Delay((int)timeout, _wait.Token);
+
                         nextRefresh = null;
                     }
-                    else Monitor.Wait(_lock);
+                    else await Task.Delay(-1, _wait.Token);
+                }
+                catch (TaskCanceledException e)
+                {
+                    // rethrow if _wait was not the cancellation source
+                    if (e.CancellationToken != _wait.Token) throw;
+                    _wait = new CancellationTokenSource();
                 }
             }
         }

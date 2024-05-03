@@ -16,7 +16,7 @@ public interface ITerminal
 
     void Write(string text);
 
-    ConsoleKeyInfo ReadKey(bool intercept = false);
+    Task<ConsoleKeyInfo> ReadKey(bool intercept = false);
 }
 
 public class ConsoleTerminal : ITerminal
@@ -44,5 +44,8 @@ public class ConsoleTerminal : ITerminal
 
     public void Write(string text) => Console.Write(text);
 
-    public ConsoleKeyInfo ReadKey(bool intercept = false) => Console.ReadKey(intercept);
+    public Task<ConsoleKeyInfo> ReadKey(bool intercept = false)
+    {
+        return Task.Run(() => Console.ReadKey(intercept));
+    }
 }
