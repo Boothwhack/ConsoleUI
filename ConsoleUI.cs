@@ -648,7 +648,7 @@ namespace ConsoleUI
                     HorizontalAlignment = 0.5,
                     Position = new Vec2
                     {
-                        X = (measured.X - 2) / 2.0,
+                        X = measured.X / 2.0,
                         Y = yOffset + i
                     }
                 };
