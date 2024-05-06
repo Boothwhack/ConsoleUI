@@ -12,6 +12,8 @@ public interface ITerminal
 
     void SetCursorPosition(int x, int y);
 
+    void Flush();
+
     void Clear();
 
     void Write(string text);
@@ -39,6 +41,10 @@ public class ConsoleTerminal : ITerminal
     public void ResetColor() => Console.ResetColor();
 
     public void SetCursorPosition(int x, int y) => Console.SetCursorPosition(x, y);
+
+    public void Flush()
+    {
+    }
 
     public void Clear() => Console.Clear();
 

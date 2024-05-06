@@ -132,6 +132,7 @@ namespace ConsoleUI
                     foreach (var drawable in element.Draw(measured))
                         drawable.Draw(Vec2.Zero, _terminal);
                 }
+                _terminal.Flush();
 
                 if (nextRefresh is null)
                 {
